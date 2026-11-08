@@ -1,0 +1,53 @@
+name: Deploy Homelab Stacks
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'stacks/**'
+      - 'coolify/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, macmini]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy WordPress Stack
+        if: contains(github.event.head_commit.modified, 'stacks/wordpress/') || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Deploying WordPress stack via local OrbStack Docker..."
+          docker compose --env-file .env -f stacks/wordpress/docker-compose.yml up -d
+
+      - name: Deploy Nextcloud Stack
+        if: contains(github.event.head_commit.modified, 'stacks/nextcloud/') || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Deploying Nextcloud stack via local OrbStack Docker..."
+          docker compose --env-file .env -f stacks/nextcloud/docker-compose.yml up -d
+
+      - name: Deploy Paperless Stack
+        if: contains(github.event.head_commit.modified, 'stacks/paperless/') || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Deploying Paperless-ngx stack via local OrbStack Docker..."
+          docker compose --env-file .env -f stacks/paperless/docker-compose.yml up -d
+
+      - name: Deploy Karakeep Stack
+        if: contains(github.event.head_commit.modified, 'stacks/karakeep/') || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Deploying Karakeep stack via local OrbStack Docker..."
+          docker compose --env-file .env -f stacks/karakeep/docker-compose.yml up -d
+
+      - name: Deploy Utilities Stack
+        if: contains(github.event.head_commit.modified, 'stacks/utilities/') || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Deploying Utilities stack via local OrbStack Docker..."
+          docker compose --env-file .env -f stacks/utilities/docker-compose.yml up -d
+
+      - name: Deploy ExCloudVault Stack
+        if: contains(github.event.head_commit.modified, 'stacks/excloudvault/') || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Deploying ExCloudVault stack via local OrbStack Docker..."
+          docker compose -f stacks/excloudvault/docker-compose.yml up -d --build

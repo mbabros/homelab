@@ -1,0 +1,99 @@
+services:
+  coolify:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: coolify-orbstack:latest
+    container_name: coolify
+    restart: unless-stopped
+    working_dir: /var/www/html
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:${BASE_CONFIG_PATH:-${HOME}/homelab/coolify/data}
+      - ./data:/data/coolify
+      - ./data/source/.env:/var/www/html/.env:ro
+      - ./data/source/.env:/data/coolify/source/.env:ro
+      - ./data/ssh:/var/www/html/storage/app/ssh
+      - ./data/ssh:/data/coolify/ssh
+      - ./data/applications:/var/www/html/storage/app/applications
+      - ./data/applications:/data/coolify/applications
+      - ./data/databases:/var/www/html/storage/app/databases
+      - ./data/databases:/data/coolify/databases
+      - ./data/services:/var/www/html/storage/app/services
+      - ./data/services:/data/coolify/services
+      - ./data/backups:/var/www/html/storage/app/backups
+      - ./data/backups:/data/coolify/backups
+      - ./data/proxy:/data/coolify/proxy
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - APP_ENV=production
+      - BASE_CONFIG_PATH=${BASE_CONFIG_PATH:-${HOME}/homelab/coolify/data}
+      - PHP_MEMORY_LIMIT=512M
+      - PHP_FPM_PM_CONTROL=dynamic
+      - PHP_FPM_PM_START_SERVERS=1
+      - PHP_FPM_PM_MIN_SPARE_SERVERS=1
+      - PHP_FPM_PM_MAX_SPARE_SERVERS=10
+      - PUSHER_BACKEND_PORT=6001
+      - APP_PORT=${APP_PORT:-8008}
+    env_file:
+      - ./data/source/.env
+    ports:
+      - "${APP_PORT:-8008}:8080"
+      - "${PUSHER_BACKEND_PORT:-6001}:6001"
+      - "6002:6002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      coolify:
+        aliases:
+          - coolify-realtime
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: coolify-db
+    restart: unless-stopped
+    volumes:
+      - coolify-db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: "${DB_USERNAME:-coolify}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_DB: "${DB_DATABASE:-coolify}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-coolify} -d ${DB_DATABASE:-coolify}"]
+      interval: 5s
+      retries: 10
+      timeout: 2s
+    networks:
+      - coolify
+
+  redis:
+    image: redis:7-alpine
+    container_name: coolify-redis
+    restart: unless-stopped
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+    volumes:
+      - coolify-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      retries: 10
+      timeout: 2s
+    networks:
+      - coolify
+
+volumes:
+  coolify-db-data:
+    name: coolify-db-data
+  coolify-redis-data:
+    name: coolify-redis-data
+
+networks:
+  coolify:
+    name: coolify
+    driver: bridge

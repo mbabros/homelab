@@ -1,0 +1,24 @@
+# Environment files containing live secrets
+.env
+*.env
+!.env.example
+!*.example
+
+# Coolify runtime data, SSH keys, databases, backups
+coolify/data/
+
+# Private keys & certificates
+*.pem
+*.key
+*.crt
+id_*
+!id_*.pub.example
+
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Log files
+*.log

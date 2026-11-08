@@ -1,0 +1,97 @@
+services:
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless
+    restart: unless-stopped
+    ports:
+      - "8086:8000"
+    environment:
+      PAPERLESS_REDIS: redis://paperless-broker:6379
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD}
+      PAPERLESS_TIKA_ENABLED: "1"
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://paperless-gotenberg:3000
+      PAPERLESS_TIKA_ENDPOINT: http://paperless-tika:9998
+      USERMAP_UID: 1000
+      USERMAP_GID: 1000
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD}
+      PAPERLESS_URL: "https://paperless.mbabros.com"
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+    volumes:
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      - ${HOME}/paperless/consume:/usr/src/paperless/consume
+      - ${HOME}/paperless/export:/usr/src/paperless/export
+    depends_on:
+      - paperless-db
+      - paperless-broker
+      - paperless-gotenberg
+      - paperless-tika
+    networks:
+      - paperless-net
+    labels:
+      - "coolify.managed=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.paperless.rule=Host(`paperless.mbabros.com`)"
+      - "traefik.http.routers.paperless.entrypoints=https"
+      - "traefik.http.routers.paperless.tls=true"
+      - "traefik.http.services.paperless.loadbalancer.server.port=8000"
+
+  paperless-db:
+    image: postgres:15
+    container_name: paperless-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD}
+    volumes:
+      - paperless-pgdata:/var/lib/postgresql/data
+    networks:
+      paperless-net:
+        aliases:
+          - paperless-db
+
+  paperless-broker:
+    image: redis:7
+    container_name: paperless-broker
+    restart: unless-stopped
+    volumes:
+      - paperless-redisdata:/data
+    networks:
+      paperless-net:
+        aliases:
+          - paperless-broker
+
+  paperless-gotenberg:
+    image: gotenberg/gotenberg:7.8
+    container_name: paperless-gotenberg
+    restart: unless-stopped
+    networks:
+      paperless-net:
+        aliases:
+          - paperless-gotenberg
+
+  paperless-tika:
+    image: ghcr.io/paperless-ngx/tika:latest
+    container_name: paperless-tika
+    restart: unless-stopped
+    networks:
+      paperless-net:
+        aliases:
+          - paperless-tika
+
+volumes:
+  paperless-data:
+    external: true
+  paperless-media:
+    external: true
+  paperless-pgdata:
+    external: true
+  paperless-redisdata:
+    external: true
+
+networks:
+  paperless-net:
+    name: paperless-net

@@ -1,0 +1,96 @@
+services:
+  nextcloud:
+    image: nextcloud:latest
+    container_name: nextcloud
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      NEXTCLOUD_TRUSTED_DOMAINS: "nextcloud.mbabros.com"
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      MYSQL_HOST: nextcloud-mariadb
+      REDIS_HOST: nextcloud-redis
+      REDIS_HOST_PASSWORD: ${NEXTCLOUD_REDIS_PASSWORD}
+      NC_overwriteprotocol: https
+      PHP_MEMORY_LIMIT: 512M
+      PHP_UPLOAD_LIMIT: 512M
+    volumes:
+      - nextcloud-html:/var/www/html
+      - nextcloud-config:/var/www/html/config
+      - nextcloud-custom_apps:/var/www/html/custom_apps
+      - ${HOME}/nextcloud-data:/var/www/html/data
+    depends_on:
+      - nextcloud-mariadb
+      - nextcloud-redis
+    networks:
+      - nextcloud-net
+    labels:
+      - "coolify.managed=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`nextcloud.mbabros.com`)"
+      - "traefik.http.routers.nextcloud.entrypoints=https"
+      - "traefik.http.routers.nextcloud.tls=true"
+      - "traefik.http.services.nextcloud.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.nextcloud-dav.redirectregex.regex=^https://(.*)/\\.well-known/(card|cal)dav"
+      - "traefik.http.middlewares.nextcloud-dav.redirectregex.replacement=https://$${1}/remote.php/dav"
+      - "traefik.http.middlewares.nextcloud-dav.redirectregex.permanent=true"
+      - "traefik.http.routers.nextcloud.middlewares=nextcloud-dav"
+
+  nextcloud-mariadb:
+    image: mariadb:10.11
+    container_name: nextcloud-mariadb
+    restart: unless-stopped
+    command: >
+      mariadbd --innodb-buffer-pool-size=512M
+               --transaction-isolation=READ-COMMITTED
+               --character-set-server=utf8mb4
+               --collation-server=utf8mb4_unicode_ci
+               --max-connections=512
+               --innodb-rollback-on-timeout=OFF
+               --innodb-lock-wait-timeout=120
+    environment:
+      MARIADB_AUTO_UPGRADE: "1"
+      MARIADB_DATABASE: nextcloud
+      MARIADB_USER: nextcloud
+      MARIADB_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${NEXTCLOUD_ROOT_PASSWORD}
+    volumes:
+      - nextcloud-mariadb-data:/var/lib/mysql
+    networks:
+      nextcloud-net:
+        aliases:
+          - nextcloud-mariadb
+
+  nextcloud-redis:
+    image: bitnami/redis:latest
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    environment:
+      ALLOW_EMPTY_PASSWORD: "no"
+      REDIS_PASSWORD: ${NEXTCLOUD_REDIS_PASSWORD}
+      REDIS_EXTRA_FLAGS: "--auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb"
+    volumes:
+      - nextcloud-redis-data:/bitnami/redis
+    networks:
+      nextcloud-net:
+        aliases:
+          - nextcloud-redis
+
+volumes:
+  nextcloud-html:
+    external: true
+    name: 495f42bf34e380b2c80749daa47d7712bfc0b4c49edb65bfa68c64a695a93a66
+  nextcloud-config:
+    external: true
+  nextcloud-custom_apps:
+    external: true
+  nextcloud-mariadb-data:
+    external: true
+  nextcloud-redis-data:
+    external: true
+
+networks:
+  nextcloud-net:
+    external: true

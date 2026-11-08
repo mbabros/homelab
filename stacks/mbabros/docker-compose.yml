@@ -1,0 +1,30 @@
+services:
+  mbabros:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GIT_TOKEN: ${GITHUB_PAT:-}
+    image: mbabros-web:latest
+    container_name: mbabros-web
+    restart: unless-stopped
+    ports:
+      - "30011:3000"
+    environment:
+      PORT: 3000
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      CONTACT_EMAIL_TO: ${CONTACT_EMAIL_TO:-admin@mbabros.com}
+      CONTACT_EMAIL_FROM: ${CONTACT_EMAIL_FROM:-no-reply@mbabros.com}
+    networks:
+      - mbabros-net
+    labels:
+      - "coolify.managed=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.mbabros.rule=Host(`mbabros.com`)"
+      - "traefik.http.routers.mbabros.entrypoints=https"
+      - "traefik.http.routers.mbabros.tls=true"
+      - "traefik.http.services.mbabros.loadbalancer.server.port=3000"
+
+networks:
+  mbabros-net:
+    name: mbabros-net

@@ -1,0 +1,83 @@
+---
+title: ExCloudVault.com — Private Cloud Platform
+description: Enterprise-grade self-hosted private cloud and infrastructure solutions. Hardened OCI edge gateway, encrypted Tailscale mesh, Apple Silicon PaaS, and codified GitOps.
+template: splash
+hero:
+  tagline: Enterprise-grade private cloud solutions without the enterprise price tag. We help businesses and engineers build, secure, and operate zero-trust self-hosted infrastructure using OCI Cloud Ingress, WireGuard Mesh, Apple Silicon, and Coolify PaaS.
+  image:
+    file: ../../assets/cloud.svg
+  actions:
+    - text: System Architecture
+      link: /showcase/architecture/
+      icon: right-arrow
+      variant: primary
+    - text: Private Cloud Blueprints
+      link: /guides/oci-caddy/
+      icon: open-book
+      variant: secondary
+    - text: Engineering Blog
+      link: /blog/
+      icon: pen
+      variant: minimal
+    - text: Book a Consultation
+      link: "#contact"
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import ContactForm from '../../components/ContactForm.astro';
+
+## Why ExCloudVault?
+
+<CardGrid stagger>
+  <Card title="No Inbound Open Ports" icon="seti:lock">
+    Zero router port forwarding. Completely immune to residential port scans and CGNAT constraints via an encrypted point-to-point Tailscale WireGuard mesh.
+  </Card>
+  <Card title="Whisper-Quiet Powerhouse" icon="apple">
+    Under 15 Watts average power draw powered by Apple Silicon unified memory architecture, running OrbStack virtualization and Coolify PaaS with zero fan noise.
+  </Card>
+  <Card title="SaaS Replacement" icon="seti:graphql">
+    Replace expensive per-seat SaaS subscriptions with enterprise open-source solutions like Nextcloud, Paperless-ngx, Immich, and Microbin.
+  </Card>
+  <Card title="100% Codified GitOps" icon="seti:git">
+    Zero manual configuration drifts. Every Caddy route, firewall policy, and container stack is version-controlled and deployed automatically via CI/CD.
+  </Card>
+</CardGrid>
+
+---
+
+## Solutions & Capabilities
+
+<CardGrid>
+  <Card title="Custom Domain Cloud Ingress" icon="seti:caddy">
+    Professional custom domain edge routing with automated Cloudflare DNS-01 Let's Encrypt wildcard certificates and HTTP/3 QUIC acceleration.
+  </Card>
+  <Card title="Private & Hybrid Cloud Setup" icon="seti:terraform">
+    Bridge cloud edge proxies directly to internal homelab hardware over encrypted WireGuard tunnels with fine-grained access controls.
+  </Card>
+  <Card title="Self-Hosted PaaS (Coolify)" icon="seti:docker">
+    Deploy and manage production Docker Compose stacks, real-time WebSocket streams, database backups, and environment secrets with zero vendor lock-in.
+  </Card>
+  <Card title="Zero-Trust Host Hardening" icon="seti:shield">
+    Hardened firewall policies with UFW and iptables, rate-limited SSH, strict Host header sanitization, and elimination of legacy administrative panels.
+  </Card>
+</CardGrid>
+
+---
+
+## Explore Our Blueprints
+
+1. **[OCI Ingress & Caddy Wildcard SSL](/guides/oci-caddy/):** Deploy an always-on cloud reverse proxy with custom `xcaddy` builds and DNS-01 validation.
+2. **[Zero-Port Tailscale Mesh Security](/guides/tailscale-mesh/):** Connect cloud edge gateways to local hardware with zero open router ports.
+3. **[Host Firewall & HTTP/3 QUIC Hardening](/guides/firewall-hardening/):** Configure UFW, eliminate administrative attack surfaces, and enable UDP 443 acceleration.
+4. **[Apple Silicon PaaS (OrbStack & Coolify)](/guides/coolify-paas/):** Run high-density container workloads quietly on Mac mini M2 hardware.
+5. **[Codified Application Stacks](/guides/app-stacks/):** Deploy production stacks for Shlink, MariaDB, Uptime Kuma, and Gotify alerts.
+
+---
+
+<h2 id="contact">Schedule a Private Cloud Consultation</h2>
+
+Interested in transitioning your business or homelab to an enterprise-grade private cloud? Send us a message and our engineering team will get back to you within 24 hours.
+
+<ContactForm />

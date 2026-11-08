@@ -1,0 +1,140 @@
+---
+// ContactForm.astro - Interactive Consultation Inquiry Form
+---
+
+<div class="contact-card">
+  <form id="contact-form">
+    <div class="form-group">
+      <label for="contact-name">Your Name</label>
+      <input type="text" id="contact-name" name="name" required placeholder="Jane Doe" />
+    </div>
+    <div class="form-group">
+      <label for="contact-email">Email Address</label>
+      <input type="email" id="contact-email" name="email" required placeholder="jane@example.com" />
+    </div>
+    <div class="form-group">
+      <label for="contact-message">Project Details or Infrastructure Inquiry</label>
+      <textarea id="contact-message" name="message" required rows="4" placeholder="Tell us about your infrastructure goals, existing homelab, or cloud questions..."></textarea>
+    </div>
+    <button type="submit" id="contact-submit" class="submit-btn">
+      Send Message
+    </button>
+    <div id="contact-status" class="status-msg" style="display: none;"></div>
+  </form>
+</div>
+
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('contact-form');
+    const submitBtn = document.getElementById('contact-submit');
+    const statusDiv = document.getElementById('contact-status');
+    if (!form || !submitBtn || !statusDiv) return;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Sending...';
+      statusDiv.style.display = 'none';
+
+      const payload = {
+        name: document.getElementById('contact-name').value,
+        email: document.getElementById('contact-email').value,
+        message: document.getElementById('contact-message').value,
+      };
+
+      try {
+        const res = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          statusDiv.style.display = 'block';
+          statusDiv.className = 'status-msg success';
+          statusDiv.innerText = '✅ Thank you! Your message has been received. Our team will contact you shortly.';
+          form.reset();
+        } else {
+          throw new Error(data.error || 'Failed to send message');
+        }
+      } catch (err) {
+        statusDiv.style.display = 'block';
+        statusDiv.className = 'status-msg error';
+        statusDiv.innerText = '⚠️ ' + (err.message || 'Something went wrong. Please try again.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Send Message';
+      }
+    });
+  });
+</script>
+
+<style>
+  .contact-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-top: 1.5rem;
+    max-width: 650px;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--sl-color-white);
+  }
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+  }
+  .form-group input:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  }
+  .submit-btn {
+    background: #3b82f6;
+    color: #fff;
+    font-weight: 600;
+    padding: 0.85rem 1.5rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s ease;
+  }
+  .submit-btn:hover {
+    background: #2563eb;
+  }
+  .status-msg {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  }
+  .status-msg.success {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+  .status-msg.error {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+</style>

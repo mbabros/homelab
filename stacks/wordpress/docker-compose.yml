@@ -1,0 +1,56 @@
+services:
+  wordpress:
+    image: wordpress:latest
+    container_name: WordPress
+    restart: unless-stopped
+    ports:
+      - "8001:80"
+    environment:
+      WORDPRESS_DB_HOST: WordPress-mysql:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD}
+      WORDPRESS_CONFIG_EXTRA: |
+        // Force HTTPS behind reverse proxy
+        $$_SERVER['HTTPS'] = 'on';
+    volumes:
+      - WordPress-config:/var/www/html
+    depends_on:
+      - wordpress-db
+    networks:
+      - wordpress-net
+    labels:
+      - "coolify.managed=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.wordpress.rule=Host(`www.mbabros.com`)"
+      - "traefik.http.routers.wordpress.entrypoints=https"
+      - "traefik.http.routers.wordpress.tls=true"
+      - "traefik.http.services.wordpress.loadbalancer.server.port=80"
+
+  wordpress-db:
+    image: mysql:8.0
+    container_name: WordPress-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: ${WORDPRESS_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${WORDPRESS_DB_ROOT_PASSWORD}
+    volumes:
+      - WordPress-mysql-data:/var/lib/mysql
+    networks:
+      wordpress-net:
+        aliases:
+          - WordPress-mysql
+          - wordpress-mysql
+          - wordpress-db
+
+volumes:
+  WordPress-config:
+    external: true
+  WordPress-mysql-data:
+    external: true
+
+networks:
+  wordpress-net:
+    external: true

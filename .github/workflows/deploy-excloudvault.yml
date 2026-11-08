@@ -1,0 +1,45 @@
+name: Deploy ExCloudVault to Coolify (Mac Mini)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'stacks/excloudvault/**'
+
+jobs:
+  deploy-coolify:
+    name: Deploy ExCloudVault to Coolify
+    runs-on: [self-hosted, macmini]
+    steps:
+      - name: Checkout homelab repository
+        uses: actions/checkout@v4
+
+      - name: Stop legacy mbabros container if running
+        run: |
+          if docker ps -q --filter "name=mbabros-web" | grep -q .; then
+            echo "Stopping legacy mbabros-web container to release port 30010..."
+            docker stop mbabros-web 2>/dev/null || true
+            docker rm mbabros-web 2>/dev/null || true
+          fi
+
+      - name: Build & Deploy excloudvault-web stack
+        run: |
+          echo "Building and launching excloudvault-web container on Mac Mini..."
+          cd stacks/excloudvault
+          docker compose up -d --build --remove-orphans
+
+      - name: Verify Container Health
+        run: |
+          echo "Verifying local service health on port 30010..."
+          for i in {1..15}; do
+            STATUS=$(curl -s http://127.0.0.1:30010/healthz || true)
+            if echo "$STATUS" | grep -q "ok"; then
+              echo "✅ ExCloudVault service is healthy and responding!"
+              break
+            fi
+            echo "Waiting for container startup... ($i/15)"
+            sleep 2
+          done
+          docker ps --filter "name=excloudvault-web" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

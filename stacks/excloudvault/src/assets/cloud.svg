@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="50%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.1" />
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="90" fill="url(#glowGrad)" />
+  <path d="M65 130 h70 a25 25 0 0 0 5 -49.5 a35 35 0 0 0 -68 -10 a25 25 0 0 0 -7 49.5 z" 
+        fill="url(#cloudGrad)" 
+        stroke="#ffffff" 
+        stroke-width="3" 
+        stroke-linejoin="round" />
+  <path d="M100 85 v35 m-12 -12 l12 12 l12 -12" 
+        stroke="#ffffff" 
+        stroke-width="3.5" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none" />
+</svg>

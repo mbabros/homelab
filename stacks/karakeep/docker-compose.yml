@@ -1,0 +1,67 @@
+services:
+  karakeep-web:
+    image: ghcr.io/karakeep-app/karakeep:release
+    container_name: karakeep-web-1
+    restart: unless-stopped
+    ports:
+      - "30000:3000"
+    environment:
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ADDR: http://meilisearch:7700
+      BROWSER_WEB_URL: http://chrome:9222
+      DATA_DIR: /data
+    volumes:
+      - karakeep_data:/data
+    depends_on:
+      - karakeep-meilisearch
+      - karakeep-chrome
+    networks:
+      - karakeep-net
+    labels:
+      - "coolify.managed=true"
+
+  karakeep-meilisearch:
+    image: getmeili/meilisearch:v1.13.3
+    container_name: karakeep-meilisearch-1
+    restart: unless-stopped
+    command: /bin/sh -c /bin/meilisearch
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_HTTP_ADDR: 0.0.0.0:7700
+    volumes:
+      - karakeep_meilisearch:/meili_data
+    networks:
+      karakeep-net:
+        aliases:
+          - meilisearch
+          - karakeep-meilisearch
+
+  karakeep-chrome:
+    image: gcr.io/zenika-hub/alpine-chrome:123
+    container_name: karakeep-chrome-1
+    restart: unless-stopped
+    command:
+      - --no-sandbox
+      - --disable-gpu
+      - --disable-dev-shm-usage
+      - --remote-debugging-address=0.0.0.0
+      - --remote-debugging-port=9222
+      - --hide-scrollbars
+    networks:
+      karakeep-net:
+        aliases:
+          - chrome
+          - karakeep-chrome
+
+volumes:
+  karakeep_data:
+    external: true
+  karakeep_meilisearch:
+    external: true
+
+networks:
+  karakeep-net:
+    external: true

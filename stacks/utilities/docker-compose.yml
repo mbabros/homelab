@@ -1,0 +1,66 @@
+services:
+  microbin:
+    image: danielszabo99/microbin:2.1.4
+    container_name: big-bear-microbin
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    environment:
+      MICROBIN_ADMIN_USERNAME: ${MICROBIN_ADMIN_USERNAME:-admin}
+      MICROBIN_ADMIN_PASSWORD: ${MICROBIN_ADMIN_PASSWORD}
+      MICROBIN_EDITABLE: "true"
+      MICROBIN_PORT: 8080
+      MICROBIN_BIND: 0.0.0.0
+      MICROBIN_PRIVATE: "true"
+      MICROBIN_DATA_DIR: microbin_data
+      MICROBIN_ENCRYPTION_CLIENT_SIDE: "true"
+      MICROBIN_ENCRYPTION_SERVER_SIDE: "true"
+      MICROBIN_QR: "true"
+    volumes:
+      - big-bear-microbin_data:/app/microbin_data
+    networks:
+      - utilities-net
+    labels:
+      - "coolify.managed=true"
+
+  dashy:
+    image: lissy93/dashy:3.1.0
+    container_name: big-bear-dashy
+    restart: unless-stopped
+    ports:
+      - "4000:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+    volumes:
+      - ${HOME}/dashy:/app/user-data
+    networks:
+      - utilities-net
+    labels:
+      - "coolify.managed=true"
+
+  nexterm:
+    image: germannewsmaker/nexterm:1.0.5-OPEN-PREVIEW
+    container_name: big-bear-nexterm
+    restart: unless-stopped
+    ports:
+      - "6989:6989"
+    environment:
+      NODE_ENV: production
+      ENCRYPTION_KEY: ${NEXTERM_ENCRYPTION_KEY}
+    volumes:
+      - big-bear-nexterm-data:/app/data
+    networks:
+      - utilities-net
+    labels:
+      - "coolify.managed=true"
+
+volumes:
+  big-bear-microbin_data:
+    external: true
+  big-bear-nexterm-data:
+    external: true
+
+networks:
+  utilities-net:
+    external: true
