@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: joplin-postgres
+    restart: unless-stopped
+    volumes:
+      - joplin-postgresql-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_64_POSTGRES:-joplin_secure_password}
+      POSTGRES_USER: ${SERVICE_USER_POSTGRES:-joplin}
+      POSTGRES_DB: joplin
+    healthcheck:
+      test:
+        - CMD
+        - pg_isready
+        - -d
+        - joplin
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - joplin-net
+    labels:
+      - "coolify.managed=true"
+
+  joplin:
+    image: joplin/server:latest
+    container_name: joplin-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "22300:22300"
+    environment:
+      APP_BASE_URL: ${APP_BASE_URL:-https://joplin.mbabros.com}
+      DB_CLIENT: pg
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_64_POSTGRES:-joplin_secure_password}
+      POSTGRES_DATABASE: joplin
+      POSTGRES_USER: ${SERVICE_USER_POSTGRES:-joplin}
+      POSTGRES_PORT: 5432
+      POSTGRES_HOST: postgres
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "bash -c ':> /dev/tcp/127.0.0.1/22300' || exit 1"
+      interval: 5s
+      timeout: 20s
+      retries: 3
+    networks:
+      - joplin-net
+    labels:
+      - "coolify.managed=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.joplin.rule=Host(`joplin.mbabros.com`)"
+      - "traefik.http.routers.joplin.entrypoints=https"
+      - "traefik.http.routers.joplin.tls=true"
+      - "traefik.http.services.joplin.loadbalancer.server.port=22300"
+
+volumes:
+  joplin-postgresql-data:
+
+networks:
+  joplin-net:
+    name: joplin-net

@@ -23,6 +23,8 @@ This document lists every service running in the ExCloudVault.com private cloud,
 | `homedock.mbabros.com` | Wildcard A | `<MAC_MINI_TAILSCALE_IP>:8088` | Mac mini | **Homedock** Docker container management portal. |
 | `immich.mbabros.com` | Wildcard A | `<MAC_MINI_TAILSCALE_IP>:8081` | Mac mini | **Immich** high-performance self-hosted photo management. |
 | `paperless.mbabros.com` | Wildcard A | `<MAC_MINI_TAILSCALE_IP>:8086` | Mac mini | **Paperless-ngx** automated OCR document indexer. |
+| `joplin.mbabros.com` | Wildcard A | `<MAC_MINI_TAILSCALE_IP>:22300` | Mac mini | **Joplin Server v3.7.4** encrypted note synchronization engine backed by PostgreSQL 16. |
+| `appflowy.mbabros.com` | Wildcard A | `<MAC_MINI_TAILSCALE_IP>:30020` | Mac mini | **AppFlowy Cloud** privacy-first AI collaborative workspace with GoTrue & MinIO. |
 | `onlyoffice.mbabros.com` | Wildcard A | `<MAC_MINI_TAILSCALE_IP>:7400` | Mac mini | **OnlyOffice Document Server** collaborative editor. |
 | `photos.mbabros.com` | Wildcard A | `<SECONDARY_TAILSCALE_IP>:2283` | Secondary Node | Secondary photo processing and sync node. |
 | `office.mbabros.com` | Wildcard A | `<SECONDARY_TAILSCALE_IP>:11080` | Secondary Node | **Collabora Online** office suite backend. |

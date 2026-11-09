@@ -22,3 +22,7 @@ id_*
 
 # Log files
 *.log
+
+# Migration data containing exported notes and binary attachments
+migration/
+*.zip

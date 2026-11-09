@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: excloudvault-web:latest
-    container_name: excloudvault-web
+    container_name: excloudvault-acxgaouv9ifw9puh1lohcazo
     restart: unless-stopped
     ports:
       - "30010:3000"
@@ -13,12 +13,14 @@ services:
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       CONTACT_EMAIL_TO: ${CONTACT_EMAIL_TO:-admin@excloudvault.com}
       CONTACT_EMAIL_FROM: ${CONTACT_EMAIL_FROM:-no-reply@excloudvault.com}
+      COOLIFY_RESOURCE_UUID: acxgaouv9ifw9puh1lohcazo
     networks:
       - excloudvault-net
     labels:
       - "coolify.managed=true"
+      - "coolify.serviceUuid=acxgaouv9ifw9puh1lohcazo"
       - "traefik.enable=true"
-      - "traefik.http.routers.excloudvault.rule=Host(`excloudvault.mbabros.com`) || Host(`mbabros.com`) || Host(`www.mbabros.com`)"
+      - "traefik.http.routers.excloudvault.rule=Host(`excloudvault.mbabros.com`)"
       - "traefik.http.routers.excloudvault.entrypoints=https"
       - "traefik.http.routers.excloudvault.tls=true"
       - "traefik.http.services.excloudvault.loadbalancer.server.port=3000"

@@ -51,7 +51,10 @@ Modern self-hosted infrastructure and application stack orchestrated via **Cooli
     ├── nextcloud/              # Nextcloud + MariaDB 10.11 + Redis
     ├── paperless/              # Paperless-ngx + PostgreSQL + Redis + Gotenberg + Tika
     ├── karakeep/               # Karakeep (Hoarder) + Meilisearch + Chrome
+    ├── joplin/                 # Joplin Server + PostgreSQL 16
+    ├── appflowy/               # AppFlowy Cloud + Gotrue + PostgreSQL + MinIO + Redis
     ├── mbabros/                # mbabros.com Vite/React + SendGrid API (Coolify)
+    ├── excloudvault/           # ExCloudVault Docs & Platform Showcase (Coolify)
     └── utilities/              # Microbin + Dashy + Nexterm
 ```
 
@@ -68,6 +71,8 @@ Modern self-hosted infrastructure and application stack orchestrated via **Cooli
 | **Nextcloud** | ✅ Migrated | `nextcloud`, `nextcloud-mariadb`, `nextcloud-redis` | `8080:80` | `nextcloud.mbabros.com` | `nextcloud-config`, `nextcloud-custom_apps`, `nextcloud-mariadb-data`, `nextcloud-redis-data`, `~/nextcloud-data` |
 | **Paperless-ngx** | ✅ Migrated | `paperless`, `paperless-db`, `paperless-broker`, `paperless-gotenberg`, `paperless-tika` | `8086:8000` | `paperless.mbabros.com` | `paperless-data`, `paperless-media`, `paperless-pgdata`, `paperless-redisdata`, `~/paperless/*` |
 | **Karakeep** | ✅ Migrated | `karakeep-web`, `karakeep-meilisearch`, `karakeep-chrome` | `30000:3000` | Local / Proxy | `karakeep_data`, `karakeep_meilisearch` |
+| **Joplin Server** | ✅ Active | `joplin`, `postgres` | `22300:22300` | `joplin.mbabros.com` | `joplin-postgresql-data` |
+| **AppFlowy Cloud** | ✅ Active | `nginx`, `appflowy_cloud`, `gotrue`, `admin_frontend`, `ai`, `worker`, `minio`, `postgres`, `redis` | `30020:80`, `30021:80` | `appflowy.mbabros.com` | `postgres_data`, `minio_data` |
 
 ---
 

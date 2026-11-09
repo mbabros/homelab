@@ -26,9 +26,17 @@ jobs:
 
       - name: Build & Deploy excloudvault-web stack
         run: |
-          echo "Building and launching excloudvault-web container on Mac Mini..."
+          echo "Building and launching Coolify-managed excloudvault stack on Mac Mini..."
           cd stacks/excloudvault
-          docker compose up -d --build --remove-orphans
+          docker build -t excloudvault-web:latest .
+          COOLIFY_COMPOSE_DIR="/Users/aru/homelab/coolify/data/services/acxgaouv9ifw9puh1lohcazo"
+          if [ -f "$COOLIFY_COMPOSE_DIR/docker-compose.yml" ]; then
+            echo "Deploying via Coolify compose definition..."
+            docker compose --project-directory "$COOLIFY_COMPOSE_DIR" -f "$COOLIFY_COMPOSE_DIR/docker-compose.yml" up -d --force-recreate
+          else
+            echo "Deploying via repo compose definition..."
+            docker compose up -d --force-recreate
+          fi
 
       - name: Verify Container Health
         run: |
@@ -42,4 +50,4 @@ jobs:
             echo "Waiting for container startup... ($i/15)"
             sleep 2
           done
-          docker ps --filter "name=excloudvault-web" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          docker ps --filter "name=excloudvault" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

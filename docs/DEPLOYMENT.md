@@ -56,7 +56,10 @@ Each stack compose manifest in `stacks/` is imported into the **Homelab** projec
 **Migration Progress:**
 - [x] **Utilities**: Migrated & active (`microbin`, `dashy`, `nexterm`)
 - [x] **mbabros.com**: Built & active on port `30010`
+- [x] **ExCloudVault**: Active on port `30010`
 - [x] **Karakeep**: Migrated & active on port `30000`
+- [x] **Joplin Server**: Active on port `22300`
+- [x] **AppFlowy Cloud**: Active on port `30020` & `30021` (v0.20+ with Spaces)
 - [ ] **Paperless-ngx**: Ready in `stacks/paperless/`
 - [ ] **WordPress**: Ready in `stacks/wordpress/`
 - [ ] **Nextcloud**: Ready in `stacks/nextcloud/`
@@ -65,7 +68,7 @@ Each stack compose manifest in `stacks/` is imported into the **Homelab** projec
 
 ## 4. GitHub Actions CI/CD Workflow Setup
 
-Create `.github/workflows/deploy.yml` in your homelab repository to automate deployment upon pushing changes to `main`:
+The repository utilizes [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) to automate deployment on pushes to `main` with smart change detection:
 
 ```yaml
 name: Deploy Homelab Stacks
@@ -87,34 +90,133 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy WordPress Stack
-        if: contains(github.event.head_commit.modified, 'stacks/wordpress/') || github.event_name == 'workflow_dispatch'
+        if: contains(toJson(github.event.commits), 'stacks/wordpress/') || contains(toJson(github.event.head_commit), 'stacks/wordpress/') || github.event_name == 'workflow_dispatch'
         run: |
-          echo "Deploying WordPress stack via local Docker engine..."
-          docker compose --env-file .env -f stacks/wordpress/docker-compose.yml up -d
+          echo "Deploying WordPress stack via local OrbStack Docker..."
+          ENV_ARGS=""
+          [ -f .env ] && ENV_ARGS="--env-file .env"
+          docker compose $ENV_ARGS -f stacks/wordpress/docker-compose.yml up -d
 
       - name: Deploy Nextcloud Stack
-        if: contains(github.event.head_commit.modified, 'stacks/nextcloud/') || github.event_name == 'workflow_dispatch'
+        if: contains(toJson(github.event.commits), 'stacks/nextcloud/') || contains(toJson(github.event.head_commit), 'stacks/nextcloud/') || github.event_name == 'workflow_dispatch'
         run: |
-          echo "Deploying Nextcloud stack via local Docker engine..."
-          docker compose --env-file .env -f stacks/nextcloud/docker-compose.yml up -d
+          echo "Deploying Nextcloud stack via local OrbStack Docker..."
+          ENV_ARGS=""
+          [ -f .env ] && ENV_ARGS="--env-file .env"
+          docker compose $ENV_ARGS -f stacks/nextcloud/docker-compose.yml up -d
 
       - name: Deploy Paperless Stack
-        if: contains(github.event.head_commit.modified, 'stacks/paperless/') || github.event_name == 'workflow_dispatch'
+        if: contains(toJson(github.event.commits), 'stacks/paperless/') || contains(toJson(github.event.head_commit), 'stacks/paperless/') || github.event_name == 'workflow_dispatch'
         run: |
-          echo "Deploying Paperless-ngx stack via local Docker engine..."
-          docker compose --env-file .env -f stacks/paperless/docker-compose.yml up -d
+          echo "Deploying Paperless-ngx stack via local OrbStack Docker..."
+          ENV_ARGS=""
+          [ -f .env ] && ENV_ARGS="--env-file .env"
+          docker compose $ENV_ARGS -f stacks/paperless/docker-compose.yml up -d
 
       - name: Deploy Karakeep Stack
-        if: contains(github.event.head_commit.modified, 'stacks/karakeep/') || github.event_name == 'workflow_dispatch'
+        if: contains(toJson(github.event.commits), 'stacks/karakeep/') || contains(toJson(github.event.head_commit), 'stacks/karakeep/') || github.event_name == 'workflow_dispatch'
         run: |
-          echo "Deploying Karakeep stack via local Docker engine..."
-          docker compose --env-file .env -f stacks/karakeep/docker-compose.yml up -d
+          echo "Deploying Karakeep stack via local OrbStack Docker..."
+          ENV_ARGS=""
+          [ -f .env ] && ENV_ARGS="--env-file .env"
+          docker compose $ENV_ARGS -f stacks/karakeep/docker-compose.yml up -d
 
       - name: Deploy Utilities Stack
-        if: contains(github.event.head_commit.modified, 'stacks/utilities/') || github.event_name == 'workflow_dispatch'
+        if: contains(toJson(github.event.commits), 'stacks/utilities/') || contains(toJson(github.event.head_commit), 'stacks/utilities/') || github.event_name == 'workflow_dispatch'
         run: |
-          echo "Deploying Utilities stack via local Docker engine..."
-          docker compose --env-file .env -f stacks/utilities/docker-compose.yml up -d
+          echo "Deploying Utilities stack via local OrbStack Docker..."
+          ENV_ARGS=""
+          [ -f .env ] && ENV_ARGS="--env-file .env"
+          docker compose $ENV_ARGS -f stacks/utilities/docker-compose.yml up -d
+
+      - name: Deploy ExCloudVault Stack
+        if: contains(toJson(github.event.commits), 'stacks/excloudvault/') || contains(toJson(github.event.head_commit), 'stacks/excloudvault/') || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Deploying ExCloudVault stack on Mac Mini..."
+          cd stacks/excloudvault
+          docker build -t excloudvault-web:latest .
+          COOLIFY_COMPOSE_DIR="/Users/aru/homelab/coolify/data/services/acxgaouv9ifw9puh1lohcazo"
+          if [ -d "$COOLIFY_COMPOSE_DIR" ] && [ -f "$COOLIFY_COMPOSE_DIR/docker-compose.yml" ]; then
+            echo "Deploying via Coolify compose definition..."
+            docker compose --project-directory "$COOLIFY_COMPOSE_DIR" -f "$COOLIFY_COMPOSE_DIR/docker-compose.yml" up -d --force-recreate
+          else
+            echo "Deploying via repo compose definition..."
+            docker compose up -d --force-recreate
+          fi
+          for i in {1..15}; do
+            STATUS=$(curl -s http://127.0.0.1:30010/healthz || true)
+            if echo "$STATUS" | grep -q "ok"; then
+              echo "✅ ExCloudVault service is healthy and responding!"
+              break
+            fi
+            echo "Waiting for container startup... ($i/15)"
+            sleep 2
+          done
+
+      - name: Deploy Joplin Stack
+        if: contains(toJson(github.event.commits), 'stacks/joplin/') || contains(toJson(github.event.head_commit), 'stacks/joplin/') || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Deploying Joplin Server stack via Coolify / OrbStack..."
+          COOLIFY_JOPLIN_DIR="/Users/aru/homelab/coolify/data/services/1fpxozg7p89dbgvutid0fkbj"
+          if [ -d "$COOLIFY_JOPLIN_DIR" ] && [ -f "$COOLIFY_JOPLIN_DIR/docker-compose.yml" ]; then
+            echo "Deploying via Coolify compose definition..."
+            docker compose --project-directory "$COOLIFY_JOPLIN_DIR" -f "$COOLIFY_JOPLIN_DIR/docker-compose.yml" up -d
+          else
+            echo "Deploying via repo compose definition..."
+            ENV_ARGS=""
+            [ -f .env ] && ENV_ARGS="--env-file .env"
+            docker compose $ENV_ARGS -f stacks/joplin/docker-compose.yml up -d
+          fi
+
+          echo "Verifying Joplin Server health..."
+          for i in {1..15}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: joplin.mbabros.com" http://127.0.0.1:22300/login || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Joplin Server is responding with HTTP 200!"
+              break
+            fi
+            echo "Waiting for Joplin server startup... ($i/15)"
+            sleep 2
+          done
+          docker ps --filter "name=joplin" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+      - name: Deploy AppFlowy Stack
+        if: contains(toJson(github.event.commits), 'stacks/appflowy/') || contains(toJson(github.event.head_commit), 'stacks/appflowy/') || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Deploying AppFlowy Cloud stack via Coolify / OrbStack..."
+          COOLIFY_APPFLOWY_DIR="/Users/aru/homelab/coolify/data/services/nh7na8gkk8v7o5djlz2bwola"
+          if [ -d "$COOLIFY_APPFLOWY_DIR" ] && [ -f "$COOLIFY_APPFLOWY_DIR/docker-compose.yml" ]; then
+            echo "Syncing Nginx reverse proxy configuration to Coolify..."
+            mkdir -p "$COOLIFY_APPFLOWY_DIR/nginx"
+            cp stacks/appflowy/nginx/nginx.conf "$COOLIFY_APPFLOWY_DIR/nginx/nginx.conf"
+
+            echo "Deploying via Coolify compose definition..."
+            docker compose --project-directory "$COOLIFY_APPFLOWY_DIR" -f "$COOLIFY_APPFLOWY_DIR/docker-compose.yml" up -d
+          else
+            echo "Deploying via repo compose definition..."
+            ENV_ARGS=""
+            [ -f .env ] && ENV_ARGS="--env-file .env"
+            docker compose $ENV_ARGS -f stacks/appflowy/docker-compose.yml up -d
+          fi
+
+          if docker ps -q --filter "name=nginx-nh7na8gkk8v7o5djlz2bwola" | grep -q .; then
+            echo "Reloading Nginx configuration inside container..."
+            docker exec nginx-nh7na8gkk8v7o5djlz2bwola nginx -s reload || true
+          fi
+
+          echo "Verifying AppFlowy Cloud stack health..."
+          for i in {1..20}; do
+            NGINX_HEALTH=$(curl -s http://127.0.0.1:30020/health || true)
+            API_HEALTH=$(curl -s http://127.0.0.1:30020/api/health || true)
+            GOTRUE_HEALTH=$(curl -s http://127.0.0.1:30020/gotrue/health || true)
+            if [ "$NGINX_HEALTH" = "healthy" ] && [ "$API_HEALTH" = "OK" ]; then
+              echo "✅ AppFlowy Nginx and Cloud API are healthy and responding!"
+              break
+            fi
+            echo "Waiting for AppFlowy services... ($i/20)"
+            sleep 3
+          done
+          docker ps --filter "name=nh7na8gkk8v7o5djlz2bwola" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
 ### Dual Deployment for mbabros.com (Coolify & Vercel)
@@ -159,3 +261,36 @@ bash scripts/rollback.sh --restore-containers
 ```
 
 This stops Coolify's Traefik proxy, starts `cosmos-server` and `cosmos-mongo-msj`, and restores any legacy Cosmos container names in ~5 seconds with zero data loss.
+
+---
+
+## 7. AppFlowy Cloud Operations & Troubleshooting Runbook
+
+For complete operational details and architecture diagrams, refer to [`stacks/appflowy/README.md`](../stacks/appflowy/README.md).
+
+### 7.1 Client Compatibility Guidelines
+- **AppFlowy Mobile & Desktop v0.15+**: Must connect to AppFlowy Cloud **v0.20+**.
+- Server versions below 0.20 will reject modern client Space endpoints with 404, surfacing as `"You can't use that feature here"` in the app.
+
+### 7.2 Promoting an Admin User (Fixing Error 1012)
+If inviting users or accessing administrative features triggers `"Only admin can perform this action"`:
+```bash
+docker exec -i postgres-nh7na8gkk8v7o5djlz2bwola psql -U appflowy -d appflowy -c "
+UPDATE auth.users 
+SET role = 'supabase_admin', 
+    is_super_admin = true 
+WHERE email = 'admin@mbabros.com';
+"
+```
+
+### 7.3 Gmail SMTP Configuration (Direct SSL Port 465)
+In Coolify or `stacks/appflowy/.env`:
+- `APPFLOWY_MAILER_SMTP_PORT=465`
+- `APPFLOWY_MAILER_SMTP_TLS_KIND=wrapper` (Port 587 with STARTTLS fails with `No compatible authentication mechanism was found`).
+
+### 7.4 Reload Nginx Gateway Without Downtime
+```bash
+cp stacks/appflowy/nginx/nginx.conf /Users/aru/homelab/coolify/data/services/nh7na8gkk8v7o5djlz2bwola/nginx/nginx.conf
+docker exec nginx-nh7na8gkk8v7o5djlz2bwola nginx -s reload
+```
+

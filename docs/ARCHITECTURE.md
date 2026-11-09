@@ -41,6 +41,8 @@ flowchart TD
             NC["Nextcloud Stack\n(Nextcloud :8080 · MariaDB 10.11 · Redis)"]
             PL["Paperless-ngx Stack\n(Paperless :8086 · Postgres 15 · Redis · Gotenberg · Tika)"]
             KK["Karakeep / Hoarder Stack\n(Web :30000 · Meilisearch · Chrome)"]
+            JOP["Joplin Server Stack\n(Server :22300 · PostgreSQL 16)"]
+            AF["AppFlowy Cloud Stack\n(Nginx :30020 · Rust API · GoTrue · MinIO)"]
             ECV["ExCloudVault Stack\n(Astro 5 + Starlight :30010 · Node.js API)"]
             Utils["Utilities Stack\n(Microbin :8888 · Dashy :4000 · Nexterm :6989)"]
         end
@@ -171,11 +173,78 @@ sequenceDiagram
 | `mbabros.com` | Vercel Edge | Cloud Consulting | `443` | Vercel CDN | ✅ Active |
 | Local / Tailscale | Mac Mini | Microbin | `8888:8080` | Volume `big-bear-microbin_data` | ✅ Migrated |
 | Local / Tailscale | Mac Mini | Dashy Dashboard | `4000:8080` | Bind `~/dashy` | ✅ Migrated |
-| Local / Tailscale | Mac Mini | Nexterm Web SSH | `6989:6989` | Volume `big-bear-nexterm-data` | ✅ Migrated |
+| Local / Tailscale | Mac Mini | Nexterm Web SSH | `127.0.0.1:6989:6989` (Tailscale Serve) | Volume `big-bear-nexterm-data` | ✅ Migrated |
 | `www.mbabros.com` | Mac Mini | WordPress / Web | `8001:80` | Volume `WordPress-config` | ✅ Migrated |
 | `nextcloud.mbabros.com`| Mac Mini | Nextcloud | `8080:80` | Bind `~/nextcloud-data` | ✅ Migrated |
 | `paperless.mbabros.com`| Mac Mini | Paperless-ngx | `8086:8000` | Bind `~/paperless/*` | ✅ Migrated |
+| `joplin.mbabros.com` | Mac Mini / Coolify | Joplin Server + Postgres | `22300:22300` | Volume `joplin-postgresql-data` | ✅ Active |
+| `appflowy.mbabros.com` | Mac Mini / Coolify | AppFlowy Cloud Stack (Nginx Gateway) | `30020:80` | Volume `postgres-data`, `minio-data` | ✅ Active |
+| `appflowy.mbabros.com/app` | Mac Mini / Coolify | AppFlowy Web App Client | `30021:80` | Container image | ✅ Active |
 | Local / Tailscale | Mac Mini | Karakeep (Hoarder) | `30000:3000`| Volume `karakeep_data` | ✅ Migrated |
+
+### AppFlowy Cloud v0.20 Microservices Architecture
+
+AppFlowy Cloud operates as a decoupled 10-container architecture managed under Coolify service UUID `nh7na8gkk8v7o5djlz2bwola`:
+
+```mermaid
+flowchart TD
+    subgraph Ingress["Client & Edge Ingress"]
+        Client["AppFlowy Desktop / Mobile (v0.15+) / Web App"]
+        Traefik["Coolify Traefik (:443)"]
+        Nginx["Nginx Gateway (:30020)\nReverse Proxy & S3 Rewriter"]
+    end
+
+    subgraph Frontends["Frontend Services"]
+        WebApp["appflowy_web:80 (:30021)\nReact Collaborative Workspace"]
+        AdminUI["admin_frontend:3000\nNext.js Admin Console (/console)"]
+    end
+
+    subgraph Core["Backend Microservices"]
+        CloudAPI["appflowy_cloud:8000\nRust High-Performance Core API & WebSocket"]
+        Worker["appflowy_worker:0.20.5\nBackground Importers & Scheduled Tasks"]
+        Auth["gotrue:9999\nSupabase Auth & JWT Engine (/gotrue)"]
+        AIService["appflowy_ai:5001\nLLM & Semantic Embeddings"]
+    end
+
+    subgraph StorageLayer["Data & Persistence Layer"]
+        Postgres[("PostgreSQL 16 + pgvector\n(Core Data, Auth, Vectors)")]
+        RedisDB[("Redis 8\n(Worker Queue & Cache)")]
+        MinIO[("MinIO S3 Storage\n(Blobs, Documents & Assets)")]
+    end
+
+    Client --> Traefik
+    Traefik --> Nginx
+
+    Nginx -->|"Path: / & /app"| WebApp
+    Nginx -->|"Path: /console"| AdminUI
+    Nginx -->|"Path: /api & /ws"| CloudAPI
+    Nginx -->|"Path: /gotrue/"| Auth
+    Nginx -->|"Path: /minio-api/"| MinIO
+
+    CloudAPI --> Postgres
+    CloudAPI --> RedisDB
+    CloudAPI --> MinIO
+    CloudAPI --> Auth
+    CloudAPI --> AIService
+
+    Worker --> Postgres
+    Worker --> RedisDB
+    Worker --> MinIO
+
+    Auth --> Postgres
+```
+
+#### Core Architectural Requirements for AppFlowy Cloud
+1. **Client Compatibility (Spaces Architecture)**:
+   - AppFlowy mobile and desktop apps version 0.15.0+ require AppFlowy Cloud v0.20+.
+   - Legacy 0.9.x backends return `404 Not Found` on `/api/workspace/{id}/view/{view_id}` and `/notifications/unread-count`, triggering `"You can't use that feature here"` in the client.
+2. **S3 Presigned URLs & Host Header Rewriting**:
+   - Web forms and file attachments use presigned MinIO URLs via `APPFLOWY_S3_PRESIGNED_URL_ENDPOINT=https://appflowy.mbabros.com/minio-api`.
+   - Nginx strips the `/minio-api/` prefix and rewrites the `Host` header to `minio:9000` to satisfy MinIO's AWS Signature v4 requirements.
+3. **Role-Based Access Control**:
+   - Administrative features require `role = 'supabase_admin'` and `is_super_admin = true` in GoTrue's `auth.users` schema.
+4. **Gmail SMTP Direct SSL**:
+   - `appflowy_cloud` and `appflowy_worker` connect to Gmail SMTP via direct SSL on port 465 (`APPFLOWY_MAILER_SMTP_TLS_KIND=wrapper`).
 
 ---
 

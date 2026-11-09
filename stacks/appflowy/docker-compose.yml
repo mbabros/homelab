@@ -1,0 +1,196 @@
+services:
+  nginx:
+    image: nginx:1.29.2
+    ports:
+      - "30020:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - appflowy_cloud
+      - gotrue
+      - admin_frontend
+      - appflowy_web
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  appflowy_web:
+    image: appflowyinc/appflowy_web:0.20.11
+    ports:
+      - "30021:80"
+    environment:
+      APPFLOWY_BASE_URL: ${APPFLOWY_BASE_URL}
+      APPFLOWY_GOTRUE_BASE_URL: ${APPFLOWY_BASE_URL}/gotrue
+      APPFLOWY_WS_BASE_URL: ${APPFLOWY_WS_BASE_URL}
+    depends_on:
+      - appflowy_cloud
+    restart: unless-stopped
+
+  appflowy_cloud:
+    image: appflowyinc/appflowy_cloud:0.20.5
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      APPFLOWY_BASE_URL: ${APPFLOWY_BASE_URL}
+      APPFLOWY_WEB_URL: ${APPFLOWY_BASE_URL}
+      APPFLOWY_ENVIRONMENT: production
+      APPFLOWY_DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-appflowy}
+      APPFLOWY_REDIS_URI: redis://redis:6379
+      APPFLOWY_GOTRUE_JWT_SECRET: ${SERVICE_PASSWORD_JWT}
+      APPFLOWY_GOTRUE_BASE_URL: http://gotrue:9999
+      APPFLOWY_S3_CREATE_BUCKET: "true"
+      APPFLOWY_S3_USE_MINIO: "true"
+      APPFLOWY_S3_MINIO_URL: http://minio:9000
+      APPFLOWY_S3_ACCESS_KEY: ${SERVICE_USER_MINIO}
+      APPFLOWY_S3_SECRET_KEY: ${SERVICE_PASSWORD_MINIO}
+      APPFLOWY_S3_BUCKET: ${APPFLOWY_S3_BUCKET:-appflowy}
+      APPFLOWY_S3_REGION: ${APPFLOWY_S3_REGION:-us-east-1}
+      APPFLOWY_S3_PRESIGNED_URL_ENDPOINT: ${APPFLOWY_BASE_URL}/minio-api
+      APPFLOWY_MAILER_SMTP_HOST: ${APPFLOWY_MAILER_SMTP_HOST:-smtp.gmail.com}
+      APPFLOWY_MAILER_SMTP_PORT: ${APPFLOWY_MAILER_SMTP_PORT:-465}
+      APPFLOWY_MAILER_SMTP_USERNAME: ${APPFLOWY_MAILER_SMTP_USERNAME}
+      APPFLOWY_MAILER_SMTP_EMAIL: ${APPFLOWY_MAILER_SMTP_EMAIL}
+      APPFLOWY_MAILER_SMTP_PASSWORD: ${APPFLOWY_MAILER_SMTP_PASSWORD}
+      APPFLOWY_MAILER_SMTP_TLS_KIND: ${APPFLOWY_MAILER_SMTP_TLS_KIND:-wrapper}
+      APPFLOWY_ACCESS_CONTROL: "true"
+      APPFLOWY_DATABASE_MAX_CONNECTIONS: 40
+      APPFLOWY_SEARCH_ENABLED: "false"
+      AI_SERVER_HOST: ai
+      AI_SERVER_PORT: 5001
+      AI_OPENAI_API_KEY: ${AI_OPENAI_API_KEY:-}
+    healthcheck:
+      test: "curl --fail http://127.0.0.1:8000/api/health || exit 1"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      gotrue:
+        condition: service_healthy
+    restart: unless-stopped
+
+  gotrue:
+    image: appflowyinc/gotrue:latest
+    environment:
+      GOTRUE_ADMIN_EMAIL: ${GOTRUE_ADMIN_EMAIL}
+      GOTRUE_ADMIN_PASSWORD: ${SERVICE_PASSWORD_ADMIN}
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_SITE_URL: appflowy-flutter://
+      GOTRUE_URI_ALLOW_LIST: "**"
+      GOTRUE_JWT_SECRET: ${SERVICE_PASSWORD_JWT}
+      GOTRUE_JWT_EXP: "604800"
+      GOTRUE_JWT_ADMIN_GROUP_NAME: supabase_admin
+      GOTRUE_DB_DRIVER: postgres
+      API_EXTERNAL_URL: ${APPFLOWY_BASE_URL}/gotrue
+      DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-appflowy}?search_path=auth
+      PORT: 9999
+      GOTRUE_SMTP_HOST: ${GOTRUE_SMTP_HOST:-smtp.gmail.com}
+      GOTRUE_SMTP_PORT: ${GOTRUE_SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${GOTRUE_SMTP_USER}
+      GOTRUE_SMTP_PASS: ${GOTRUE_SMTP_PASS}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${GOTRUE_SMTP_ADMIN_EMAIL}
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+    healthcheck:
+      test: "curl --fail http://127.0.0.1:9999/health || exit 1"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  admin_frontend:
+    image: appflowyinc/admin_frontend:latest
+    environment:
+      APPFLOWY_GOTRUE_BASE_URL: ${APPFLOWY_BASE_URL}/gotrue
+      APPFLOWY_BASE_URL: ${APPFLOWY_BASE_URL}
+    depends_on:
+      gotrue:
+        condition: service_healthy
+      appflowy_cloud:
+        condition: service_healthy
+    restart: unless-stopped
+
+  appflowy_worker:
+    image: appflowyinc/appflowy_worker:0.20.5
+    environment:
+      RUST_LOG: info
+      APPFLOWY_ENVIRONMENT: production
+      APPFLOWY_WORKER_ENVIRONMENT: production
+      APPFLOWY_WORKER_REDIS_URL: redis://redis:6379
+      APPFLOWY_WORKER_DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-appflowy}
+      APPFLOWY_WORKER_DATABASE_NAME: ${POSTGRES_DB:-appflowy}
+      APPFLOWY_WORKER_IMPORT_TICK_INTERVAL: 30
+      APPFLOWY_S3_USE_MINIO: "true"
+      APPFLOWY_S3_MINIO_URL: http://minio:9000
+      APPFLOWY_S3_ACCESS_KEY: ${SERVICE_USER_MINIO}
+      APPFLOWY_S3_SECRET_KEY: ${SERVICE_PASSWORD_MINIO}
+      APPFLOWY_S3_BUCKET: ${APPFLOWY_S3_BUCKET:-appflowy}
+      APPFLOWY_S3_REGION: ${APPFLOWY_S3_REGION:-us-east-1}
+      APPFLOWY_MAILER_SMTP_HOST: ${APPFLOWY_MAILER_SMTP_HOST:-smtp.gmail.com}
+      APPFLOWY_MAILER_SMTP_PORT: ${APPFLOWY_MAILER_SMTP_PORT:-465}
+      APPFLOWY_MAILER_SMTP_USERNAME: ${APPFLOWY_MAILER_SMTP_USERNAME}
+      APPFLOWY_MAILER_SMTP_EMAIL: ${APPFLOWY_MAILER_SMTP_EMAIL}
+      APPFLOWY_MAILER_SMTP_PASSWORD: ${APPFLOWY_MAILER_SMTP_PASSWORD}
+      APPFLOWY_MAILER_SMTP_TLS_KIND: ${APPFLOWY_MAILER_SMTP_TLS_KIND:-wrapper}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${SERVICE_USER_POSTGRES}
+      POSTGRES_DB: ${POSTGRES_DB:-appflowy}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      POSTGRES_HOST: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${SERVICE_USER_POSTGRES}", "-d", "${POSTGRES_DB:-appflowy}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.2.2-alpine3.22
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -h localhost -p 6379 ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  minio:
+    image: pgsty/silo:RELEASE.2026-10-15T00-00-00Z
+    environment:
+      MINIO_ROOT_USER: ${SERVICE_USER_MINIO}
+      MINIO_ROOT_PASSWORD: ${SERVICE_PASSWORD_MINIO}
+      MINIO_BROWSER_REDIRECT_URL: ${APPFLOWY_BASE_URL}/minio
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
