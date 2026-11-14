@@ -6,7 +6,7 @@ This document details the architectural design, network topology, security model
 
 ## 1. High-Level Architecture Overview
 
-The homelab is architected across two computing tiers: an **Edge Ingress Node** on Oracle Cloud Infrastructure (OCI) and a **Primary Homelab Node** on a local Apple Silicon Mac Mini, interconnected via an encrypted **Tailscale WireGuard Mesh VPN**.
+The homelab is architected across a multi-node compute infrastructure: an **Edge Ingress Node** on Oracle Cloud Infrastructure (OCI Free Tier), a **Primary Homelab Node** on a local Apple Silicon Mac Mini, and a **Secondary Homelab Node (`wsl-docker-server`)** on a Windows host running native Docker within WSL2 (Ubuntu 26.04 LTS), all interconnected via an encrypted **Tailscale WireGuard Mesh VPN**.
 
 ```mermaid
 flowchart TD
@@ -28,7 +28,7 @@ flowchart TD
         TS_Tunnel["Point-to-Point Overlay Network"]
     end
 
-    subgraph Homelab["Homelab Host: Apple Mac Mini (macOS)"]
+    subgraph HomelabPrimary["Primary Homelab Node: Apple Mac Mini (macOS)"]
         subgraph Runtime["Runtime & CI/CD Layer"]
             Runner["GitHub Actions Self-Hosted Runner\n(Outbound Long-Poll, Zero Inbound Ports)"]
             OrbStack["OrbStack Docker Engine\n(High-Performance Linux Kernel Runtime)"]
@@ -53,6 +53,25 @@ flowchart TD
         end
     end
 
+    subgraph HomelabSecondary["Secondary Homelab Node: Windows Host (WSL2 Ubuntu Docker Server)"]
+        subgraph WSLRuntime["WSL2 Runtime Layer (Ubuntu 26.04 LTS)"]
+            WSLDocker["Docker Engine (Native Linux)\n(Mirrored Networking Mode)"]
+            CoolifyWSL["Secondary Coolify Controller (:8000)\n(Isolated Management PaaS)"]
+        end
+
+        subgraph WSLStacks["WSL Container Application Stacks"]
+            ImmichServer["Immich Server (:2283)\n(High-Performance Media Engine)"]
+            ImmichML["Immich Machine Learning (:3003)\n(CLIP & Facial Recognition)"]
+            ImmichDB["PostgreSQL (VectorChord)\n(pgvector · Vector Search)"]
+            ImmichRedis["Redis Cache\n(Job Queues & Session Cache)"]
+        end
+
+        subgraph WSLStorage["High-Capacity Storage"]
+            PhotoStorage["Photo Library Mount\n(Dedicated Media Volume)"]
+            DBStorage["Database Mount\n(Persistent pgdata)"]
+        end
+    end
+
     Users --> CF_DNS
     CF_DNS -->|"mbabros.com (Apex CNAME)"| Vercel
     CF_DNS -->|"*.mbabros.com (Wildcard A)"| Caddy
@@ -60,13 +79,19 @@ flowchart TD
     Caddy --> Uptime
     Caddy --> Shlink
     Caddy ==>|"Encrypted Tailscale WireGuard (:443)"| TS_Tunnel
-    TS_Tunnel ==> Traefik
+    TS_Tunnel ==>|"Primary Node Ingress (:443)"| Traefik
+    TS_Tunnel ==>|"Immich Ingress (:2283)"| ImmichServer
     Traefik -->|"Host: www.mbabros.com (:8001)"| WP
     Traefik -->|"Host: nextcloud.mbabros.com (:8080)"| NC
     Traefik -->|"Host: paperless.mbabros.com (:8086)"| PL
     Traefik -->|"Host: excloudvault.mbabros.com (:30010)"| ECV
     Traefik -->|"Port :8888 / :4000 / :6989"| Utils
     Traefik -->|"Port :30000"| KK
+
+    ImmichServer --- ImmichML
+    ImmichServer --- ImmichDB
+    ImmichServer --- ImmichRedis
+    WSLStacks --- WSLStorage
 
     GitHub -.->|"Outbound-only WebSocket Poll"| Runner
     Runner -->|"Local socket / Coolify API"| Coolify
@@ -82,13 +107,14 @@ flowchart TD
 ### Ingress Routing Path
 1. **DNS Resolution**:
    - Apex domain (`mbabros.com`) is managed via Cloudflare CNAME flattening to Vercel (`c1947903554823f6.vercel-dns-017.com`), serving the previous MBA Bros consulting frontend.
-   - Wildcard subdomains (`*.mbabros.com`) point to the OCI edge VM public IP (`146.235.196.186`).
+   - Wildcard subdomains (`*.mbabros.com`) point to the OCI edge VM public IP (`<edge-public-ip>`).
 2. **Edge Ingress (OCI VM)**:
    - Caddy handles automated TLS termination using Cloudflare DNS-01 challenges (`*.<domain>` wildcard certificate).
    - Traffic for `excloudvault.mbabros.com` is reverse-proxied across Tailscale WireGuard directly to the self-hosted Coolify container on the Mac Mini (:30010).
    - Local monitoring tools (Uptime Kuma, Shlink) terminate directly on the OCI VM.
 3. **Tailscale Mesh Overlay**:
-   - Traffic destined for homelab applications (`nextcloud`, `paperless`, `karakeep`, `microbin`, etc.) is proxied across the Tailscale interface (`100.x.y.z`) directly to the Mac Mini host ports or Coolify's reverse proxy.
+   - Traffic destined for homelab applications (`nextcloud`, `paperless`, `karakeep`, `microbin`, etc.) is proxied across the private Tailscale mesh directly to the Primary Node host ports or Coolify reverse proxy.
+   - Traffic destined for media services (`immich.mbabros.com`, `photos.mbabros.com`) is proxied across Tailscale directly to the Secondary Node (`wsl-docker-server`) on port `2283`.
    - No public ports are opened directly on the home router (eliminating CGNAT/port-forwarding dependencies and DDoS exposure).
 
 ### Caddy to Coolify (Traefik) Ingress Architecture
@@ -181,6 +207,8 @@ sequenceDiagram
 | `appflowy.mbabros.com` | Mac Mini / Coolify | AppFlowy Cloud Stack (Nginx Gateway) | `30020:80` | Volume `postgres-data`, `minio-data` | ✅ Active |
 | `appflowy.mbabros.com/app` | Mac Mini / Coolify | AppFlowy Web App Client | `30021:80` | Container image | ✅ Active |
 | Local / Tailscale | Mac Mini | Karakeep (Hoarder) | `30000:3000`| Volume `karakeep_data` | ✅ Migrated |
+| `immich.mbabros.com` / `photos.mbabros.com` | WSL Node (`wsl-docker-server`) | Immich Server & Machine Learning | `2283:2283`, `3003` | Host Mounts (Photos & DB) | ✅ Active |
+| Local / Tailscale | WSL Node (`wsl-docker-server`) | Coolify PaaS (Secondary Controller) | `8000:8080`, `6001`, `6002` | Volume `coolify-*-data` | ✅ Active |
 
 ### AppFlowy Cloud v0.20 Microservices Architecture
 
@@ -317,7 +345,53 @@ Coolify is natively designed for Linux VPS environments running systemd, root SS
 
 ---
 
-## 6. Observability & Unified Telegram Alerting
+## 6. Secondary Node Architecture: Windows Host & WSL2 Docker Server (wsl-docker-server)
+
+To offload high-throughput media ingest, machine learning vectorization, and intensive photo backups from the primary macOS node, a dedicated secondary compute node is deployed on a Windows host using a containerized **WSL2 Ubuntu 26.04 LTS (Resolute Raccoon)** environment.
+
+### 1. WSL2 Mirrored Networking Topology
+Traditional WSL2 virtual machines operate behind a hypervisor NAT bridge, necessitating brittle Windows port proxies (`netsh interface portproxy`) and dynamic IP routing. The secondary node leverages modern WSL2 **Mirrored Networking Mode** (`networkingMode=mirrored`):
+
+```ini
+# %USERPROFILE%\.wslconfig
+[wsl2]
+vmIdleTimeout=-1
+networkingMode=mirrored
+dnsTunneling=true
+
+[general]
+instanceIdleTimeout=-1
+```
+
+- **Zero-NAT Port Binding**: Any port opened inside the WSL2 Docker environment (such as Immich on `:2283` or SSH on `:2222`) is bound directly and natively to the host interfaces, including the Tailscale WireGuard virtual adapter.
+- **Native Tailscale Addressing**: The edge reverse proxy (OCI Caddy) and management clients communicate directly with WSL containers over Tailscale without intermediate host-to-VM port forwarding.
+
+### 2. Immich High-Performance Media Stack
+Immich operates as a four-container microservices architecture optimized for rapid photo/video backup, vector search, and face clustering:
+
+| Container Service | Image / Engine | Purpose & Routing |
+| :--- | :--- | :--- |
+| **`immich-server`** | `ghcr.io/immich-app/immich-server:v3.3.x` | Core REST API, multipart chunked media ingestion, WebSockets, background microservices (`:2283`) |
+| **`immich-machine-learning`**| `ghcr.io/immich-app/immich-machine-learning:v3.3.x` | Python inference engine for CLIP visual embeddings and facial recognition (`:3003`) |
+| **`immich-postgres`** | `ghcr.io/immich-app/postgres:14-vectorchord` | PostgreSQL database with `pgvector` and `vectorchord` extensions for instant similarity search |
+| **`immich-redis`** | `redis:6.2.20-alpine` | BullMQ distributed job queues, thumbnail caching, and transcode queue management |
+
+- **Storage Layout**: Media uploads reside on high-capacity host-attached storage mounted at `/usr/src/app/upload`. Database states persist in dedicated host binds for rapid backup and snapshotting.
+- **Reverse Proxy Ingress**: Public HTTPS traffic to `immich.mbabros.com` and `photos.mbabros.com` is terminated at the edge by Caddy with Cloudflare wildcard TLS and reverse-proxied over the Tailscale mesh to `:2283` with streaming upload and WebSocket support.
+
+### 3. Secondary Coolify PaaS Controller
+To provide unified container lifecycle management and health monitoring without coupling the secondary node to the primary node's Docker socket, an independent, lightweight **Coolify** instance runs natively inside WSL2:
+- **Services**: `coolify` core, `coolify-db` (PostgreSQL 15), and `coolify-redis` (Redis 7).
+- **Interface**: Exposed on local/mesh port `8000` (mapped from container `:8080`) with real-time WebSocket event streaming on `:6001` and interactive terminal proxying on `:6002`.
+
+### 4. Administrative Security & Direct SSH Isolation
+- **Direct WSL Terminal Ingress**: The Linux OpenSSH daemon inside WSL is configured on port `2222` (`/etc/ssh/sshd_config.d/wsl.conf`).
+- **Bypassing Host PowerShell**: Connecting to port `22` lands in Windows OpenSSH / PowerShell; connecting to port `2222` lands directly in the native Ubuntu `bash` shell with full Linux PTY allocation.
+- **Public-Key-Only Authentication**: Password authentication is disabled (`PasswordAuthentication no`) and account passwords are locked, enforcing cryptographic public-key authentication for all management sessions.
+
+---
+
+## 7. Observability & Unified Telegram Alerting
 
 Both the edge monitoring system (**Uptime Kuma** on OCI) and the local control plane (**Coolify** on Mac Mini) are integrated into a single Telegram bot for alerts:
 

@@ -135,7 +135,7 @@ jobs:
           echo "Deploying ExCloudVault stack on Mac Mini..."
           cd stacks/excloudvault
           docker build -t excloudvault-web:latest .
-          COOLIFY_COMPOSE_DIR="/Users/aru/homelab/coolify/data/services/acxgaouv9ifw9puh1lohcazo"
+          COOLIFY_COMPOSE_DIR="$HOME/homelab/coolify/data/services/acxgaouv9ifw9puh1lohcazo"
           if [ -d "$COOLIFY_COMPOSE_DIR" ] && [ -f "$COOLIFY_COMPOSE_DIR/docker-compose.yml" ]; then
             echo "Deploying via Coolify compose definition..."
             docker compose --project-directory "$COOLIFY_COMPOSE_DIR" -f "$COOLIFY_COMPOSE_DIR/docker-compose.yml" up -d --force-recreate
@@ -157,7 +157,7 @@ jobs:
         if: contains(toJson(github.event.commits), 'stacks/joplin/') || contains(toJson(github.event.head_commit), 'stacks/joplin/') || github.event_name == 'workflow_dispatch'
         run: |
           echo "Deploying Joplin Server stack via Coolify / OrbStack..."
-          COOLIFY_JOPLIN_DIR="/Users/aru/homelab/coolify/data/services/1fpxozg7p89dbgvutid0fkbj"
+          COOLIFY_JOPLIN_DIR="$HOME/homelab/coolify/data/services/1fpxozg7p89dbgvutid0fkbj"
           if [ -d "$COOLIFY_JOPLIN_DIR" ] && [ -f "$COOLIFY_JOPLIN_DIR/docker-compose.yml" ]; then
             echo "Deploying via Coolify compose definition..."
             docker compose --project-directory "$COOLIFY_JOPLIN_DIR" -f "$COOLIFY_JOPLIN_DIR/docker-compose.yml" up -d
@@ -184,7 +184,7 @@ jobs:
         if: contains(toJson(github.event.commits), 'stacks/appflowy/') || contains(toJson(github.event.head_commit), 'stacks/appflowy/') || github.event_name == 'workflow_dispatch'
         run: |
           echo "Deploying AppFlowy Cloud stack via Coolify / OrbStack..."
-          COOLIFY_APPFLOWY_DIR="/Users/aru/homelab/coolify/data/services/nh7na8gkk8v7o5djlz2bwola"
+          COOLIFY_APPFLOWY_DIR="$HOME/homelab/coolify/data/services/nh7na8gkk8v7o5djlz2bwola"
           if [ -d "$COOLIFY_APPFLOWY_DIR" ] && [ -f "$COOLIFY_APPFLOWY_DIR/docker-compose.yml" ]; then
             echo "Syncing Nginx reverse proxy configuration to Coolify..."
             mkdir -p "$COOLIFY_APPFLOWY_DIR/nginx"
@@ -290,7 +290,140 @@ In Coolify or `stacks/appflowy/.env`:
 
 ### 7.4 Reload Nginx Gateway Without Downtime
 ```bash
-cp stacks/appflowy/nginx/nginx.conf /Users/aru/homelab/coolify/data/services/nh7na8gkk8v7o5djlz2bwola/nginx/nginx.conf
+cp stacks/appflowy/nginx/nginx.conf $HOME/homelab/coolify/data/services/nh7na8gkk8v7o5djlz2bwola/nginx/nginx.conf
 docker exec nginx-nh7na8gkk8v7o5djlz2bwola nginx -s reload
 ```
 
+---
+
+## 8. Secondary Node Runbook: Windows Host & WSL2 Docker Server (wsl-docker-server)
+
+The secondary compute node runs on a Windows host using a containerized **WSL2 Ubuntu 26.04 LTS (Resolute Raccoon)** environment dedicated to Immich and localized container workflows.
+
+### 8.1 WSL2 Configuration & Mirrored Networking
+Ensure `%USERPROFILE%\.wslconfig` on the Windows host is configured for mirrored networking to bind Linux container ports directly to host interfaces (including Tailscale):
+
+```ini
+[wsl2]
+vmIdleTimeout=-1
+networkingMode=mirrored
+dnsTunneling=true
+
+[general]
+instanceIdleTimeout=-1
+```
+
+Apply and restart WSL:
+```powershell
+wsl --shutdown
+```
+
+### 8.2 Docker Engine & Direct SSH Setup in WSL2
+Inside Ubuntu 26.04 LTS:
+1. **Docker Engine**: Install the official Docker repository for Ubuntu 26.04 Resolute (`docker-ce`, `docker-compose-plugin`).
+2. **Direct SSH Access (Port 2222)**: To bypass Windows PowerShell and log directly into the native Ubuntu shell, configure `/etc/ssh/sshd_config.d/wsl.conf`:
+   ```text
+   Port 2222
+   PermitRootLogin prohibit-password
+   PasswordAuthentication no
+   ```
+   Restart the SSH service:
+   ```bash
+   sudo systemctl restart ssh.service
+   ```
+
+### 8.3 Immich High-Performance Media Stack Deployment
+Create deployment directory and compose file:
+```bash
+mkdir -p /opt/stacks/immich
+cd /opt/stacks/immich
+```
+
+Create `compose.yaml`:
+```yaml
+name: immich
+
+services:
+  immich-server:
+    container_name: immich-server
+    image: ghcr.io/immich-app/immich-server:v3.3.6
+    volumes:
+      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - .env
+    ports:
+      - "2283:2283"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  immich-machine-learning:
+    container_name: immich-machine-learning
+    image: ghcr.io/immich-app/immich-machine-learning:v3.3.6
+    volumes:
+      - ./model-cache:/cache
+    env_file:
+      - .env
+    restart: always
+
+  redis:
+    container_name: immich-redis
+    image: redis:6.2.20-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  database:
+    container_name: immich-postgres
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.3.0-pgvectors0.2.0
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+```
+
+Create `.env`:
+```bash
+UPLOAD_LOCATION=/mnt/storage/photos
+DB_HOSTNAME=database
+DB_USERNAME=immich_user
+DB_PASSWORD=YOUR_STRONG_DB_PASSWORD
+DB_DATABASE_NAME=immich
+DB_PORT=5432
+REDIS_HOSTNAME=redis
+IMMICH_MACHINE_LEARNING_URL=http://immich-machine-learning:3003
+```
+
+Start Immich:
+```bash
+docker compose up -d
+```
+
+Verify service health and version:
+```bash
+curl -s http://127.0.0.1:2283/api/server/version
+# Output: {"major":3,"minor":3,"patch":6,"prerelease":null}
+```
+
+### 8.4 Secondary Coolify Instance Setup
+To run an isolated Coolify instance on the secondary node:
+```bash
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+```
+Once initialized, the secondary Coolify dashboard is accessible locally or across the Tailscale mesh at `http://<secondary-node-ip>:8000`.
