@@ -6,7 +6,7 @@ Modern self-hosted infrastructure and application platform orchestrated via **Co
 
 ## Architecture Diagram
 
-![Homelab System Architecture](homelab.png)
+[![Homelab System Architecture](https://github.com/mbabros/homelab/raw/main/homelab.png?raw=true)](https://github.com/mbabros/homelab/blob/main/homelab.png)
 
 > Detailed technical specifications, network diagrams, and security models are documented in [**docs/ARCHITECTURE.md**](docs/ARCHITECTURE.md).
 
